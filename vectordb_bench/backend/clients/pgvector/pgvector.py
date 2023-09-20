@@ -116,12 +116,17 @@ class PgVector(VectorDB):
         )
     
     def _create_index(self, pg_engine):
-        index_param = self.case_config.index_param()
+        # index_param = self.case_config.index_param()
+        # index = Index(self._index_name, self.pg_table.c.embedding,
+        #     postgresql_using='ivfflat',
+        #     postgresql_with={'lists': index_param["lists"]},
+        #     postgresql_ops={'embedding': index_param["metric"]}
+        # )
         index = Index(self._index_name, self.pg_table.c.embedding,
-            postgresql_using='ivfflat',
-            postgresql_with={'lists': index_param["lists"]},
-            postgresql_ops={'embedding': index_param["metric"]}
-        )
+                      postgresql_using='hnsw',
+                      postgresql_with={'m': 16, 'ef_construction': 64},
+                      postgresql_ops={'embedding': 'vector_l2_ops'}
+                      )
         index.drop(pg_engine, checkfirst = True)
         index.create(pg_engine)
 
@@ -159,9 +164,9 @@ class PgVector(VectorDB):
     ) -> list[int]:
         assert self.pg_table is not None
         search_param =self.case_config.search_param()
-        with self.pg_engine.connect() as conn: 
-            conn.execute(text(f'SET ivfflat.probes = {search_param["probes"]}'))
-            conn.commit()
+        # with self.pg_engine.connect() as conn:
+        #     conn.execute(text(f'SET ivfflat.probes = {search_param["probes"]}'))
+        #     conn.commit()
         op_fun = getattr(self.pg_table.c.embedding, search_param["metric_fun"])
         if filters:
             res = self.pg_session.scalars(select(self.pg_table).order_by(op_fun(query)).filter(self.pg_table.c.id > filters.get('id')).limit(k))
